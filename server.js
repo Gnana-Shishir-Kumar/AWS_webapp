@@ -8,8 +8,31 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 
 // Middleware
-app.use(express.json({ limit: '1kb' })); // Small limit to catch payloads easily
-app.use(express.urlencoded({ extended: true, limit: '1kb' }));
+app.use(express.json({ 
+    limit: '1kb',
+    strict: false,
+    type: 'application/json' 
+}));
+
+app.use(express.urlencoded({ 
+    extended: true, 
+    limit: '1kb' 
+}));
+
+// Add JSON parsing error handler BEFORE routes
+app.use((error, req, res, next) => {
+  if (error instanceof SyntaxError && error.status === 400 && 'body' in error) {
+    // JSON parsing error - return 400 instead of 500
+    return res.status(400)
+      .set({
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'X-Content-Type-Options': 'nosniff'
+      })
+      .end();
+  }
+  next(error);
+});
 
 // Routes
 app.use('/', healthRoutes);
@@ -19,7 +42,7 @@ app.use('*', (req, res) => {
   res.status(404).json({ error: 'Endpoint not found' });
 });
 
-// Global error handler
+// Global error handler - should never be reached for /healthz
 app.use((error, req, res, next) => {
   console.error('Unhandled error:', error);
   res.status(500).json({ error: 'Internal server error' });
